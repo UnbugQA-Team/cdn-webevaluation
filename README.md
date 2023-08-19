@@ -7,6 +7,6 @@ This repository hosts a JavaScript script that monitors changes to the URL and s
 1. Include the script in your HTML:
 
    ```html
-   <script src="https://raw.githubusercontent.com/UnbugQA-Team/cdn-webevaluation/main/script.js?token=GHSAT0AAAAAACF6NUHWINU37F24K4V53JPCZHBIJZQ"></script>
+   <script src="https://raw.githubusercontent.com/UnbugQA-Team/cdn-webevaluation/main/script.js"></script>
 
 
