@@ -1,29 +1,43 @@
-(function (e, o) {
-    if (typeof exports === 'object' && typeof module !== 'undefined') {
-        module.exports = o();
-    } else if (typeof define === 'function' && define.amd) {
-        define([], o);
-    } else if (typeof exports === 'object') {
-        exports.$ = o();
-    } else {
-        e.$ = o();
-    }
-})(self, function () {
-    return function () {
-        window.onload = function () {
-            // Send a message when the script is loaded
-            var scriptLoadedMessage = "Script loaded"; // Customize the message
-            parent.postMessage(scriptLoadedMessage, "http://localhost:2222/");
+(function () {
+  // Customize the message
+  var scriptLoadedMessage = "Script loaded";
+  var failedMessage = "Click event did not change the URL";
 
-            var e = document.location.href,
-                o = document.querySelector("body");
-            new MutationObserver(function (o) {
-                if (e !== document.location.href) {
-                    e = document.location.href;
-                    var t = JSON.parse(JSON.stringify(e));
-                    parent.postMessage(t, "http://localhost:2222/");
-                }
-            }).observe(o, { childList: true, subtree: true });
-        };
-    };
-});
+  // Specify the target URLs
+  var targetUrl1 = "http://localhost:2222/";
+  var targetUrl2 = "https://staging.crowdapp.io/";
+
+  // Send a message when the script is loaded to both URLs
+  parent.postMessage(scriptLoadedMessage, targetUrl1);
+  parent.postMessage(scriptLoadedMessage, targetUrl2);
+
+  // Function to send the current URL to both target URLs
+  function sendCurrentUrl() {
+    var currentUrl = document.location.href;
+    parent.postMessage(currentUrl, targetUrl1);
+    parent.postMessage(currentUrl, targetUrl2);
+  }
+
+  // Click event listener
+  document.body.addEventListener("click", function () {
+    var previousUrl = document.location.href;
+
+    // Delay sending the URL to check if the click event changes the URL
+    setTimeout(function () {
+      if (previousUrl === document.location.href) {
+        // Click event did not change the URL, so send the "failed" message
+        parent.postMessage(failedMessage, targetUrl1);
+        parent.postMessage(failedMessage, targetUrl2);
+      } else {
+        // Click event changed the URL, so send the current URL
+        sendCurrentUrl();
+      }
+    }, 0);
+  });
+
+  // Popstate event listener for URL changes
+  window.addEventListener("popstate", sendCurrentUrl);
+
+  // Initial call to send the current URL
+  sendCurrentUrl();
+})();
