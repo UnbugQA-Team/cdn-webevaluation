@@ -7,37 +7,49 @@
   var targetUrl1 = "http://localhost:2222/";
   var targetUrl2 = "https://staging.crowdapp.io/";
 
-  // Send a message when the script is loaded to both URLs
-  parent.postMessage(scriptLoadedMessage, targetUrl1);
-  parent.postMessage(scriptLoadedMessage, targetUrl2);
-
-  // Function to send the current URL to both target URLs
-  function sendCurrentUrl() {
-    var currentUrl = document.location.href;
-    parent.postMessage(currentUrl, targetUrl1);
-    parent.postMessage(currentUrl, targetUrl2);
+  // Function to send a message
+  function sendMessage(message) {
+    parent.postMessage(message, targetUrl1);
+    parent.postMessage(message, targetUrl2);
   }
 
-  // Click event listener
-  document.body.addEventListener("click", function () {
+  // Function to send the current URL
+  function sendCurrentUrl() {
+    var currentUrl = document.location.href;
+    sendMessage(currentUrl);
+  }
+
+  // Initialize a mutation observer to watch for DOM changes
+  var observer = new MutationObserver(function (mutationsList) {
+    // DOM has changed, send the current URL
+    sendCurrentUrl();
+  });
+
+  // Configuration of the mutation observer
+  var observerConfig = { childList: true, subtree: true };
+
+  // Start observing the document
+  observer.observe(document, observerConfig);
+
+  // Function to handle click events
+  function handleClickEvent() {
     var previousUrl = document.location.href;
 
     // Delay sending the URL to check if the click event changes the URL
     setTimeout(function () {
       if (previousUrl === document.location.href) {
         // Click event did not change the URL, so send the "failed" message
-        parent.postMessage(failedMessage, targetUrl1);
-        parent.postMessage(failedMessage, targetUrl2);
+        sendMessage(failedMessage);
       } else {
         // Click event changed the URL, so send the current URL
         sendCurrentUrl();
       }
     }, 0);
-  });
+  }
 
-  // Popstate event listener for URL changes
-  window.addEventListener("popstate", sendCurrentUrl);
+  // Add a click event listener
+  document.body.addEventListener("click", handleClickEvent);
 
-  // Initial call to send the current URL
-  sendCurrentUrl();
+  // Initial call to send the current URL when the script is loaded
+  sendMessage(scriptLoadedMessage);
 })();
