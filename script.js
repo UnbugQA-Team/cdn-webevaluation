@@ -1,3 +1,4 @@
+
 (function () {
   // Customize the message
   var scriptLoadedMessage = "Script loaded";
@@ -53,3 +54,5 @@
   // Initial call to send the current URL when the script is loaded
   sendMessage(scriptLoadedMessage);
 })();
+
+    
