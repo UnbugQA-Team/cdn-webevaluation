@@ -6,7 +6,7 @@
 
   // Specify the target URLs
   var targetUrl1 = "http://localhost:2222/";
-  var targetUrl2 = "https://staging.crowdapp.io/";
+  var targetUrl2 = "https://app.crowdapp.io/";
 
   // Function to send a message
   function sendMessage(message) {
