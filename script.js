@@ -8,11 +8,13 @@
         // Specify the target URLs
         var targetUrl1 = "http://localhost:2222/";
         var targetUrl2 = "https://app.crowdapp.io/";
+        var targetUrl3 = "https://version2.crowdapp.io/"
 
         // Function to send a message
         function sendMessage(message) {
           parent.postMessage(message, targetUrl1);
           parent.postMessage(message, targetUrl2);
+         parent.postMessage(message, targetUrl3);
         }
 
         // Function to send the current URL
