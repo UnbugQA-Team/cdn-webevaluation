@@ -1,35 +1,98 @@
 (function () {
-  // Customize the messages
+
   var scriptLoadedMessage = "Script loaded";
   var failedMessage = "Click event did not change the URL";
-  var events = []; // Array to store events
-  var recorder; // Declare the recorder variable
+  var events = [];
+  var recorder;
   
-  // Specify the target URLs
+
+  var parentOrigin = '';
+  try {
+    parentOrigin = document.referrer ? new URL(document.referrer).origin : '*';
+  } catch (e) {
+    parentOrigin = '*';
+  }
+  
   var targetUrls = [
     "http://localhost:2222/",
     "https://app.crowdapp.io/",
     "https://version2.crowdapp.io/"
   ];
   
-  // Function to send a message to all target URLs
-  function sendMessage(message) {
-    for (var i = 0; i < targetUrls.length; i++) {
+ 
+  function sendMessage(message, retries = 2) {
+    const sendAttempt = () => {
       try {
-        parent.postMessage(message, targetUrls[i]);
+      
+        if (parentOrigin && parentOrigin !== '*') {
+          parent.postMessage(message, parentOrigin);
+        }
+        
+       
+        parent.postMessage(message, '*');
+        
+       
+        targetUrls.forEach(function(url) {
+          try {
+            parent.postMessage(message, url);
+          } catch (e) {
+           console.log(e)
+          }
+        });
       } catch (e) {
-        console.error("Error sending message to " + targetUrls[i], e);
+        if (retries > 0) {
+          setTimeout(function() {
+            sendMessage(message, retries - 1);
+          }, 500);
+        }
       }
-    }
+    };
+    
+    sendAttempt();
+  }
+ 
+  function confirmScriptLoaded() {
+    var confirmationMessage = {
+      type: "script_confirmation",
+      message: "Script loaded and ready",
+      timestamp: Date.now(),
+      url: window.location.href,
+      ready: true
+    };
+    
+ 
+    sendMessage(confirmationMessage);
+    
+   
+    setTimeout(function() {
+      sendMessage(confirmationMessage);
+    }, 1000);
+    
+   
+    var heartbeatCount = 0;
+    var heartbeatInterval = setInterval(function() {
+      if (heartbeatCount >= 5) {
+        clearInterval(heartbeatInterval);
+        return;
+      }
+      
+      sendMessage({
+        type: "script_heartbeat",
+        message: "Script heartbeat",
+        heartbeat: ++heartbeatCount,
+        timestamp: Date.now(),
+        url: window.location.href
+      });
+    }, 2000);
   }
   
-  // Function to send the current URL
+ 
   function sendCurrentUrl() {
     var currentUrl = document.location.href;
     sendMessage({ type: "navigation", url: currentUrl });
   }
   
-  // Check if rrweb is available and define a function to load it if it's not
+
   function ensureRrwebLoaded(callback) {
     if (typeof rrweb !== 'undefined') {
       callback();
@@ -40,68 +103,71 @@
     script.src = 'https://cdn.jsdelivr.net/npm/rrweb@latest/dist/rrweb.min.js';
     script.onload = callback;
     script.onerror = function() {
-      console.error("Failed to load rrweb library");
+      sendMessage({ type: "script_error", error: "Failed to load rrweb library" });
     };
     document.head.appendChild(script);
   }
   
-  // Initialize a mutation observer to watch for DOM changes
+
   var observer = new MutationObserver(function (mutationsList) {
-    // DOM has changed, send the current URL
     sendCurrentUrl();
   });
   
-  // Configuration of the mutation observer
+
   var observerConfig = { childList: true, subtree: true };
   
-  // Start observing the document
+
   observer.observe(document, observerConfig);
   
-  // Function to handle click events
+ 
   function handleClickEvent() {
     var previousUrl = document.location.href;
     
-    // Delay sending the URL to check if the click event changes the URL
-    // Increased timeout to better detect SPA navigation
     setTimeout(function () {
       if (previousUrl === document.location.href) {
-        // Click event did not change the URL, so send the "failed" message
         sendMessage({ type: "click_no_nav", message: failedMessage });
       } else {
-        // Click event changed the URL, so send the current URL
         sendCurrentUrl();
       }
-    }, 100); // Increased from 0 to 100ms for better SPA detection
+    }, 100);
   }
   
-  // Add a click event listener
+
   document.addEventListener("click", handleClickEvent, true);
   
-  // Define a function to check the origin and record events if it matches
-  const startRecording = function() {
-    // Check if current page is being loaded from one of our target URLs
-    const isAllowedReferrer = targetUrls.some(url => document.referrer.startsWith(url));
+
+  window.addEventListener("message", function(event) {
+    if (event.data && event.data.type === "detection_ping") {
     
-    // Also check if we're in an iframe, which is likely if we're using parent.postMessage
-    const isInIframe = window.self !== window.top;
+      sendMessage({
+        type: "script_confirmation",
+        message: "Script responding to ping",
+        timestamp: Date.now(),
+        pingResponse: true
+      });
+    }
+  });
+  
+ 
+  function startRecording() {
+    var isAllowedReferrer = targetUrls.some(function(url) {
+      return document.referrer.startsWith(url);
+    });
+    var isInIframe = window.self !== window.top;
     
     if (isAllowedReferrer || isInIframe) {
       ensureRrwebLoaded(function() {
         try {
           if (recorder) {
-            // Stop any existing recording
             recorder();
           }
           
-          // Clear existing events
           events = [];
           
-          // Start recording
           recorder = rrweb.record({
-            emit(event) {
-              events.push(event); // Collect events in the array
+            emit: function(event) {
+              events.push(event);
               
-              // Send every 50 events to avoid large payloads
               if (events.length % 50 === 0) {
                 sendEventsToTargets();
               }
@@ -110,64 +176,76 @@
             recordCrossOriginIframes: true,
           });
           
-          console.log("Recording started");
           sendMessage({ type: "recording_started" });
         } catch (e) {
-          console.error("Error starting recording:", e);
           sendMessage({ type: "recording_error", error: e.message });
         }
       });
     }
-  };
+  }
   
-  // Function to send the entire array of events
+
   function sendEventsToTargets() {
     if (events.length === 0) return;
     
-    // Clone the events array to avoid mutation during sending
-    const eventsToSend = [...events];
+    var eventsToSend = events.slice(); 
     
-    // Send to all target URLs
-    for (var i = 0; i < targetUrls.length; i++) {
-      try {
-        parent.postMessage({ 
-          type: "rrweb_events", 
-          events: eventsToSend,
-          timestamp: Date.now(),
-          url: document.location.href
-        }, targetUrls[i]);
-      } catch (e) {
-        console.error("Error sending events to " + targetUrls[i], e);
-      }
-    }
+    sendMessage({ 
+      type: "rrweb_events", 
+      events: eventsToSend,
+      timestamp: Date.now(),
+      url: document.location.href
+    });
   }
   
-  // Set up periodic sending of events (every 5 seconds)
+ 
   setInterval(sendEventsToTargets, 5000);
   
-  // Set up cleanup function
+
   function cleanup() {
     if (recorder) {
-      recorder(); // Stop recording
+      recorder();
       recorder = null;
     }
     
-    observer.disconnect(); // Stop the mutation observer
+    observer.disconnect();
     document.removeEventListener("click", handleClickEvent, true);
     
-    // Send final events
     sendEventsToTargets();
     
     sendMessage({ type: "cleanup_complete" });
   }
   
-  // Clean up when the page is unloaded
+
   window.addEventListener("beforeunload", cleanup);
   
-  // Initial call to send the current URL when the script is loaded
-  sendMessage({ type: "script_loaded", message: scriptLoadedMessage });
   
-  // Start recording
-  startRecording();
+  function initializeScript() {
+    try {
+   
+      sendMessage({ type: "script_loaded", message: scriptLoadedMessage });
+   
+      confirmScriptLoaded();
+      
+
+      startRecording();
+      
+    } catch (e) {
+      sendMessage({
+        type: "script_error",
+        error: e.message,
+        timestamp: Date.now()
+      });
+    }
+  }
+  
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeScript);
+  } else {
+    initializeScript();
+  }
+  
+  setTimeout(initializeScript, 100);
   
 })();
